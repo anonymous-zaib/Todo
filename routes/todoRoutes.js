@@ -24,7 +24,7 @@ try {
 
 // get user tasks
 router.get('/get', auth, async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 100 } = req.query;
     
     try {
         const tasks = await Todo.find({ owner: req.user._id })
