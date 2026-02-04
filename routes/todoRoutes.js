@@ -64,12 +64,12 @@ router.get('/gettodobyid/:id', auth, async (req, res)=>{
     }
 })
 
-// update a task
+// update a task (description only)
 router.patch('/update/:id', auth, async (req, res)=>{
     try {
         const taskid = req.params.id;
         const update = Object.keys(req.body);
-        const allowedUpdate = [ 'description', 'complete'];
+        const allowedUpdate = [ 'description'];
         const isValidOperation = update.every(update => allowedUpdate.includes(update));
 
         if(!isValidOperation){
@@ -117,6 +117,26 @@ router.delete('/delete/:id', auth, async (req, res)=>{
     }
 })
 
+// Filter tasks by date range (must be before /completed and /incomplete)
+router.get('/filter', auth, async (req, res) => {
+    const { startDate, endDate } = req.query;
+    try {
+        if (!startDate || !endDate) {
+            return res.status(400).json({error: "startDate and endDate are required"});
+        }
+        const tasks = await Todo.find({
+            owner: req.user._id,
+            createdAt: { 
+                $gte: new Date(startDate), 
+                $lte: new Date(endDate) 
+            }
+        });
+        res.status(200).json({tasks, count: tasks.length, message: "Tasks filtered by date fetched successfully", status: true});
+    } catch (err) {
+        res.status(500).send({error: err.message});
+    }
+});
+
 // Get all completed tasks
 router.get('/completed', auth, async (req, res) => {
     try {
@@ -143,21 +163,34 @@ router.get('/incomplete', auth, async (req, res) => {
     }
 });
 
-
-// Filter tasks by date range
-router.get('/filter', auth, async (req, res) => {
-    const { startDate, endDate } = req.query;
+// Complete/Uncomplete a task (separate endpoint)
+router.patch('/complete/:id', auth, async (req, res) => {
     try {
-        const tasks = await Todo.find({
-            owner: req.user._id,
-            createdAt: { 
-                $gte: new Date(startDate), 
-                $lte: new Date(endDate) 
-            }
+        const taskid = req.params.id;
+        const { complete } = req.body;
+
+        if (typeof complete !== 'boolean') {
+            return res.status(400).json({error: "complete must be a boolean"});
+        }
+
+        const task = await Todo.findOne({
+            _id: taskid,
+            owner: req.user._id
         });
-        res.status(200).json({tasks, count: tasks.length, message: "Tasks filtered by date fetched successfully", status: true});
-    } catch (err) {
-        res.status(500).send({error: err.message});
+        if(!task){
+            return res.status(404).json({ message: "task not found"})
+        }
+        task.complete = complete;
+        await task.save();
+        
+        res.json({
+            message: complete ? "Task marked as completed" : "Task marked as incomplete",
+            status: true,
+            task
+        })
+    } 
+    catch (err) {
+        res.status(500).send({ error: err})
     }
 });
 
